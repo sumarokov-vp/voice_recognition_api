@@ -85,11 +85,30 @@ tests/              # Smoke-тесты use case и клиента
 
 ## Подключение клиента в боте
 
-Добавить в бота SDK как editable-пакет (если монорепо/локальная разработка):
+Пакет распространяется через git-теги (в перспективе — через PyPI). Версия
+пакета автоматически синхронизирована с git-тегом (`hatch-vcs`).
+
+**Вариант A — PyPI (когда пакет опубликован):**
 
 ```bash
-uv add --editable /home/sumarokov/projects/infrastructure/voice_recognition
+uv add "voice-recognition==0.1.0"
 ```
+
+**Вариант B — git-тег (по SSH, если репозиторий приватный):**
+
+```bash
+uv add "voice-recognition @ git+ssh://git@github.com/<org>/voice_recognition.git@v0.1.0"
+```
+
+**Вариант C — git-тег по HTTPS (публичный репозиторий):**
+
+```bash
+uv add "voice-recognition @ git+https://github.com/<org>/voice_recognition.git@v0.1.0"
+```
+
+Клиент не тянет за собой серверные зависимости (`faster-whisper`, `fastapi`,
+`uvicorn`) — только `pydantic` и `httpx`. Серверные лежат в extras `server`
+и нужны только для локальной Docker-сборки.
 
 Использование:
 
@@ -124,4 +143,26 @@ uv run pytest
 uv run ruff check src tests
 uv run mypy
 uv run lint-imports
+```
+
+## Релизный процесс
+
+Версия пакета берётся из git-тега через `hatch-vcs`. Чтобы выпустить новую
+версию:
+
+```bash
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push origin v0.2.0
+```
+
+Сборка wheel/sdist:
+
+```bash
+uv build
+```
+
+Публикация на PyPI (когда настроен аккаунт):
+
+```bash
+uv publish
 ```
