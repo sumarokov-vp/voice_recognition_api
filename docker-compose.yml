@@ -1,0 +1,32 @@
+services:
+  voice-recognition:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: voice-recognition:latest
+    container_name: voice-recognition
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    ports:
+      - "8000:8000"
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-ru}
+      WHISPER_MODEL_DIR: /models
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-25}
+    volumes:
+      - ./data/models:/models
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s

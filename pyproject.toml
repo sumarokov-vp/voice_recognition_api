@@ -1,0 +1,98 @@
+[project]
+name = "voice-recognition"
+description = "Локальный сервис распознавания голосовых сообщений на базе faster-whisper"
+readme = "README.md"
+requires-python = ">=3.14"
+dynamic = ["version"]
+dependencies = [
+    "pydantic>=2.9",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+server = [
+    "faster-whisper>=1.1.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.12",
+    "pydantic-settings>=2.6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "respx>=0.22",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "import-linter>=2.1",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/transcription", "src/api", "src/client"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "RET", "SIM", "PL", "RUF"]
+ignore = ["PLR0913", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "S101"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query", "fastapi.Body"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["transcription", "api", "client"]
+
+[[tool.mypy.overrides]]
+module = ["faster_whisper", "faster_whisper.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+
+[tool.importlinter]
+root_packages = ["transcription", "api", "client"]
+
+[[tool.importlinter.contracts]]
+name = "transcription не зависит от api и client"
+type = "forbidden"
+source_modules = ["transcription"]
+forbidden_modules = ["api", "client"]
+
+[[tool.importlinter.contracts]]
+name = "client не зависит от transcription и api"
+type = "forbidden"
+source_modules = ["client"]
+forbidden_modules = ["transcription", "api"]
+
+[[tool.importlinter.contracts]]
+name = "domain не зависит от application и infrastructure"
+type = "forbidden"
+source_modules = ["transcription.domain"]
+forbidden_modules = ["transcription.application", "transcription.infrastructure"]
+
+[[tool.importlinter.contracts]]
+name = "application не зависит от infrastructure"
+type = "forbidden"
+source_modules = ["transcription.application"]
+forbidden_modules = ["transcription.infrastructure"]
