@@ -36,7 +36,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app/src" \
     HF_HOME=/models \
     HF_HUB_CACHE=/models \
-    HF_HUB_DISABLE_XET=1
+    HF_HUB_DISABLE_XET=1 \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 # Зафиксированная версия ffmpeg из debian bookworm. При bump'е base-образа
 # apt может предложить другую — обновлять осознанно.
