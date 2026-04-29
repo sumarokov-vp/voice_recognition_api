@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="/home/sumarokov/projects/infrastructure/voice_recognition"
+PROJECT_DIR="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 
 echo "=== Деплой voice-recognition ==="
 
