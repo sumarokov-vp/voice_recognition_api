@@ -1,11 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class WhisperEngineConfig(BaseModel):
     """Настройки движка faster-whisper."""
 
-    model: str = Field(default="small")
-    device: str = Field(default="cpu")
-    compute_type: str = Field(default="int8")
-    language: str = Field(default="ru")
-    model_dir: str = Field(default="/models")
+    model: str = "medium"
+    device: str = "cuda"
+    compute_type: str = "float16"
+    language: str = "ru"
+    model_dir: str = "/models"

@@ -6,11 +6,11 @@ class ApiConfig(BaseSettings):
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    max_file_size_mb: int = 25
+    max_file_size_mb: int = 1000
 
-    whisper_model: str = "small"
-    whisper_device: str = "cpu"
-    whisper_compute_type: str = "int8"
+    whisper_model: str = "medium"
+    whisper_device: str = "cuda"
+    whisper_compute_type: str = "float16"
     whisper_language: str = "ru"
     whisper_model_dir: str = "/models"
 
