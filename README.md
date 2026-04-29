@@ -1,168 +1,105 @@
 # voice_recognition
 
-Локальный сервис распознавания голосовых сообщений на базе
-[`faster-whisper`](https://github.com/SYSTRAN/faster-whisper). Поднимается в
-Docker, предоставляет HTTP API, к которому подключаются локальные боты через
-тонкий клиентский SDK.
+HTTP-сервис транскрипции аудио на базе [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Принимает аудиофайл, возвращает текст с временными метками.
 
-Детали архитектуры — в [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+Работает на CPU или NVIDIA GPU (рекомендуется).
 
-## Структура
+## Возможности
 
+- Синхронная транскрипция — файл отправляется, ответ возвращается сразу
+- Асинхронная транскрипция — задача ставится в очередь, результат забирается polling'ом
+- Форматы: ogg, mp3, wav, m4a, opus и другие (через ffmpeg)
+- Автоопределение языка
+- GPU-ускорение через CUDA
+
+## Требования
+
+- Docker
+- NVIDIA GPU + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) — для GPU-режима
+
+## Быстрый старт
+
+```bash
+cp .env.example .env
+docker compose up -d
 ```
-src/
-  transcription/    # Ядро: домен + use case + faster-whisper движок
-  api/              # HTTP-слой: FastAPI, роуты, DI, composition root
-  client/           # SDK: Protocol ITranscriber + httpx-реализация
-tests/              # Smoke-тесты use case и клиента
-```
 
-## Запуск
+Документация API доступна после запуска:
 
-1. Скопировать пример окружения и при необходимости отредактировать:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Собрать и запустить контейнер:
-
-   ```bash
-   docker compose build
-   docker compose up -d
-   ```
-
-3. Проверить работоспособность:
-
-   ```bash
-   curl http://localhost:8000/health
-   curl -X POST http://localhost:8000/transcribe \
-        -F "file=@voice.ogg" \
-        -F "language=ru"
-   ```
+- **ReDoc** — http://localhost:8000/redoc
+- **Swagger UI** — http://localhost:8000/docs
 
 ## Конфигурация
 
-Переменная              | По умолчанию | Назначение
-------------------------|--------------|-----------------------------------------------
-`WHISPER_MODEL`         | `small`      | Размер модели (`tiny`, `base`, `small`, `medium`, `large-v3`)
-`WHISPER_DEVICE`        | `cpu`        | `cpu` или `cuda`
-`WHISPER_COMPUTE_TYPE`  | `int8`       | Тип весов (`int8`, `float16`, `float32`)
-`WHISPER_LANGUAGE`      | `ru`         | Дефолтный язык (`auto` — автоопределение)
-`WHISPER_MODEL_DIR`     | `/models`    | Путь для кеша моделей внутри контейнера
-`API_HOST`              | `0.0.0.0`    | Адрес для bind
-`API_PORT`              | `8000`       | Порт
-`MAX_FILE_SIZE_MB`      | `25`         | Максимальный размер загружаемого файла
+Переменные задаются в файле `.env`. Пример значений — в `.env.example`.
 
-Модель кешируется в томе `./data/models:/models`.
+Переменная             | По умолчанию | Описание
+-----------------------|--------------|------------------------------------------------------
+`WHISPER_MODEL`        | `medium`     | Размер модели: `tiny`, `base`, `small`, `medium`, `large-v3`
+`WHISPER_DEVICE`       | `cuda`       | Устройство: `cuda` или `cpu`
+`WHISPER_COMPUTE_TYPE` | `float16`    | Точность: `float16`, `int8`, `float32`
+`WHISPER_LANGUAGE`     | `ru`         | Язык по умолчанию (`auto` — автоопределение)
+`WHISPER_MODEL_DIR`    | `/models`    | Путь кеша моделей внутри контейнера
+`API_PORT`             | `8000`       | Порт сервиса
+`MAX_FILE_SIZE_MB`     | `1000`       | Максимальный размер загружаемого файла, МБ
 
-## HTTP API
+Модели кешируются в `./data/models` — при перезапуске контейнера не перекачиваются.
 
-### `POST /transcribe`
+## API
 
-`multipart/form-data`:
+Полная документация — [ReDoc](http://localhost:8000/redoc) или [Swagger UI](http://localhost:8000/docs).
 
-- `file` — аудио (ogg/opus/mp3/wav/m4a)
-- `language` (optional) — `ru`, `en`, `auto`, ...
-- лимит 25 МБ
+### Синхронная транскрипция
 
-Ответ:
-
-```json
-{
-  "text": "...",
-  "language": "ru",
-  "duration": 3.2,
-  "segments": [{"start": 0.0, "end": 1.5, "text": "..."}]
-}
+```
+POST /transcribe
 ```
 
-### `GET /health`
+Тело запроса: `multipart/form-data`
 
-```json
-{"status": "ok", "model": "small", "device": "cpu", "loaded": true}
-```
+- `file` — аудиофайл
+- `language` (необязательно) — код языка, например `ru`, `en`. По умолчанию берётся из конфига.
 
-## Подключение клиента в боте
-
-Пакет распространяется через git-теги (в перспективе — через PyPI). Версия
-пакета автоматически синхронизирована с git-тегом (`hatch-vcs`).
-
-**Вариант A — PyPI (когда пакет опубликован):**
+Пример:
 
 ```bash
-uv add "voice-recognition==0.1.0"
+curl -X POST http://localhost:8000/transcribe \
+     -F "file=@audio.ogg"
 ```
 
-**Вариант B — git-тег (по SSH, если репозиторий приватный):**
+### Асинхронная транскрипция
 
-```bash
-uv add "voice-recognition @ git+ssh://git@github.com/<org>/voice_recognition.git@v0.1.0"
+Подходит для больших файлов или когда не нужно ждать ответа.
+
+```
+POST /transcribe/async   — поставить задачу в очередь
+GET  /transcribe/async/{job_id} — проверить статус и забрать результат
 ```
 
-**Вариант C — git-тег по HTTPS (публичный репозиторий):**
+### Состояние сервиса
+
+```
+GET /health
+```
+
+## Клиентский SDK
+
+В пакете есть готовый Python-клиент — `client`. Он не требует серверных зависимостей (только `httpx` и `pydantic`) и устанавливается напрямую из репозитория:
 
 ```bash
 uv add "voice-recognition @ git+https://github.com/<org>/voice_recognition.git@v0.1.0"
 ```
 
-Клиент не тянет за собой серверные зависимости (`faster-whisper`, `fastapi`,
-`uvicorn`) — только `pydantic` и `httpx`. Серверные лежат в extras `server`
-и нужны только для локальной Docker-сборки.
-
 Использование:
 
 ```python
 from pathlib import Path
+from client import HttpTranscriber, HttpTranscriberConfig
 
-from client import HttpTranscriber, HttpTranscriberConfig, TextTranscriberAdapter
-
-http_transcriber = HttpTranscriber(
-    HttpTranscriberConfig(base_url="http://voice-recognition:8000"),
+transcriber = HttpTranscriber(
+    HttpTranscriberConfig(base_url="http://localhost:8000"),
 )
 
-# Вариант 1: нативный API — полный результат
-result = http_transcriber.transcribe(Path("/tmp/voice.ogg"))
-print(result.text, result.segments)
-
-# Вариант 2: адаптер для обратной совместимости с прежним ITranscriber
-legacy_transcriber = TextTranscriberAdapter(http_transcriber)
-text: str = legacy_transcriber.transcribe(Path("/tmp/voice.ogg"))
-```
-
-`Protocol ITranscriber` импортируется из `client.protocols.i_transcriber`.
-Боты объявляют зависимость от этого протокола, а в composition root бота
-подставляется либо `HttpTranscriber` (новые потребители), либо
-`TextTranscriberAdapter` (старые потребители, ожидающие `str`).
-
-## Разработка
-
-```bash
-uv sync --all-extras
-uv run pytest
-uv run ruff check src tests
-uv run mypy
-uv run lint-imports
-```
-
-## Релизный процесс
-
-Версия пакета берётся из git-тега через `hatch-vcs`. Чтобы выпустить новую
-версию:
-
-```bash
-git tag -a v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
-```
-
-Сборка wheel/sdist:
-
-```bash
-uv build
-```
-
-Публикация на PyPI (когда настроен аккаунт):
-
-```bash
-uv publish
+result = transcriber.transcribe(Path("audio.ogg"))
+print(result.text)
 ```
