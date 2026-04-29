@@ -20,12 +20,16 @@ WORKDIR /app
 
 # Только файлы описания зависимостей. Инвалидируется при изменении uv.lock.
 # README нужен hatchling'у для чтения метаданных проекта.
-COPY pyproject.toml uv.lock README.md /app/
+COPY pyproject.toml uv.lock /app/
 
 # Устанавливаем зависимости без самого проекта — слой переиспользуется,
 # пока uv.lock не меняется.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev --extra server
+
+# README нужен hatchling'у только при сборке самого пакета, не при sync зависимостей.
+# Копируем отдельно, чтобы изменения README не инвалидировали слой uv sync.
+COPY README.md /app/
 
 
 FROM ${PYTHON_IMAGE} AS runtime
@@ -42,10 +46,20 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Зафиксированная версия ffmpeg из debian bookworm. При bump'е base-образа
 # apt может предложить другую — обновлять осознанно.
-RUN apt-get update && \
+# CUDA runtime нужен ctranslate2 (бэкенд faster-whisper) — либы не бандлятся в wheel.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends curl gnupg2 && \
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
+        -o /tmp/cuda-keyring.deb && \
+    dpkg -i /tmp/cuda-keyring.deb && \
+    rm /tmp/cuda-keyring.deb && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
-        ffmpeg=7:5.1.8-0+deb12u1 && \
-    rm -rf /var/lib/apt/lists/* && \
+        ffmpeg=7:5.1.8-0+deb12u1 \
+        libcublas-12-6 \
+        libcudnn9-cuda-12 && \
     mkdir -p /models && \
     chmod 1777 /models
 
