@@ -1,3 +1,4 @@
+import logging
 import sys
 
 import uvicorn
@@ -8,6 +9,10 @@ from transcription.domain.exceptions import TranscriptionError
 
 
 def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     config = ApiConfig()
     try:
         app = create_app(config)
