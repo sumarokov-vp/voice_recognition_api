@@ -8,3 +8,7 @@ class AudioDecodingError(TranscriptionError):
 
 class ModelNotLoadedError(TranscriptionError):
     """Запрос транскрипции до загрузки модели."""
+
+
+class JobNotFoundError(TranscriptionError):
+    """Задача транскрипции с указанным идентификатором не найдена."""
