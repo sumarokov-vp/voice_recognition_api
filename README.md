@@ -82,24 +82,83 @@ GET  /transcribe/async/{job_id} — проверить статус и забр�
 GET /health
 ```
 
-## Клиентский SDK
+## Клиентский протокол
 
-В пакете есть готовый Python-клиент — `client`. Он не требует серверных зависимостей (только `httpx` и `pydantic`) и устанавливается напрямую из репозитория:
+В пакете нет готового HTTP-клиента — только контракт `ITranscriber` и DTO ответа. Реализацию пишите у себя: это позволяет выбрать любую HTTP-библиотеку (`httpx`, `aiohttp`, `requests`) и не тащить лишние транзитивные зависимости.
 
-```bash
-uv add "voice-recognition @ git+https://github.com/<org>/voice_recognition.git@v0.1.0"
-```
-
-Использование:
+### Пример HTTP-реализации
 
 ```python
 from pathlib import Path
-from client import HttpTranscriber, HttpTranscriberConfig
 
-transcriber = HttpTranscriber(
-    HttpTranscriberConfig(base_url="http://localhost:8000"),
-)
+import httpx
+from pydantic import BaseModel
 
+
+class Segment(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionResult(BaseModel):
+    text: str
+    language: str
+    duration: float
+    segments: list[Segment] = []
+
+
+class HttpTranscriber:
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        timeout_seconds: float = 120.0,
+        default_language: str | None = None,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout_seconds
+        self._default_language = default_language
+
+    def transcribe(self, audio_path: Path) -> TranscriptionResult:
+        data: dict[str, str] = {}
+        if self._default_language is not None:
+            data["language"] = self._default_language
+
+        with audio_path.open("rb") as handle:
+            files = {"file": (audio_path.name, handle, "application/octet-stream")}
+            response = httpx.post(
+                f"{self._base_url}/transcribe",
+                files=files,
+                data=data,
+                timeout=self._timeout,
+            )
+        response.raise_for_status()
+        return TranscriptionResult.model_validate(response.json())
+
+
+transcriber = HttpTranscriber("http://localhost:8000", default_language="ru")
 result = transcriber.transcribe(Path("audio.ogg"))
 print(result.text)
+```
+
+### Адаптер `transcribe -> str`
+
+Если потребитель ожидает старую сигнатуру (только текст без сегментов):
+
+```python
+from pathlib import Path
+from typing import Protocol
+
+
+class ITranscriber(Protocol):
+    def transcribe(self, audio_path: Path) -> TranscriptionResult: ...
+
+
+class TextTranscriberAdapter:
+    def __init__(self, transcriber: ITranscriber) -> None:
+        self._transcriber = transcriber
+
+    def transcribe(self, audio_path: Path) -> str:
+        return self._transcriber.transcribe(audio_path).text
 ```
