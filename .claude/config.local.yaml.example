@@ -1,0 +1,20 @@
+# Per-machine конфиг Claude-скиллов репы voice_recognition — ШАБЛОН.
+#   cp .claude/config.local.yaml.example .claude/config.local.yaml   → впиши свои значения.
+# config.local.yaml — в .gitignore (у каждого разработчика свой); этот .example — в git.
+#
+# КОНВЕНЦИЯ — что сюда класть, а что нельзя:
+#   МОЖНО — только несекретные ССЫЛКИ, по которым скилл сам достаёт доступ:
+#     • имена SSH-алиасов из ~/.ssh/config (host / user / приватный ключ лежат ТАМ, не здесь);
+#     • пути к записям в pass (password-store) — секрет берётся в рантайме `pass show <path>`.
+#   НЕЛЬЗЯ — сами секреты: пароли, токены, приватные ключи, строки подключения с паролем.
+#     Секрет всегда остаётся в pass — здесь только ПУТЬ к нему.
+#
+# Структура: верхний уровень `skills:`, по одной секции на скилл.
+# Резолвер — .claude/lib/machine_config.py. Каждое значение можно переопределить env-переменной.
+
+skills:
+  # Скилл /deploy — выкатка voice_recognition на sumarokov-home.
+  deploy:
+    # Имя Host из ~/.ssh/config, указывающего на сервер через mesh ЕЦТО (10.72.0.199).
+    # host/user/приватный ключ настроены ТАМ, под этим алиасом. env-override: $PROD_SSH_ALIAS
+    prod_ssh_alias: sumarokov_home_ecto
