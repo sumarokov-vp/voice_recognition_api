@@ -15,7 +15,10 @@ services:
               count: all
               capabilities: [gpu]
     ports:
-      - "8000:8000"
+      # порт публикуется точечно: локальная машина и mesh ЕЦТО, но не домашняя LAN.
+      # адрес 10.72.0.199 поднимает wg-quick@ecto — без интерфейса docker не стартует
+      - "127.0.0.1:8000:8000"
+      - "10.72.0.199:8000:8000"
     environment:
       WHISPER_MODEL: ${WHISPER_MODEL}
       WHISPER_DEVICE: ${WHISPER_DEVICE}
