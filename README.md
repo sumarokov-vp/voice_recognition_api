@@ -6,6 +6,7 @@ HTTP-сервис транскрипции аудио на базе [faster-whis
 
 ## Возможности
 
+- Доступ по ключу — каждый потребитель ходит со своим `X-API-Key`, имя потребителя пишется в лог
 - Синхронная транскрипция — файл отправляется, ответ возвращается сразу
 - Асинхронная транскрипция — задача ставится в очередь, результат забирается polling'ом
 - Форматы: ogg, mp3, wav, m4a, opus и другие (через ffmpeg)
@@ -21,10 +22,13 @@ HTTP-сервис транскрипции аудио на базе [faster-whis
 
 ```bash
 cp .env.example .env
+# в .env заменить CHANGE_ME в API_KEYS на настоящий ключ
 docker compose up -d
 ```
 
-Документация API доступна после запуска:
+Без `API_KEYS` сервис не поднимается: молча открытый сервис хуже упавшего.
+
+Документация API доступна после запуска — под тем же ключом, что и остальные ручки:
 
 - **ReDoc** — http://localhost:8000/redoc
 - **Swagger UI** — http://localhost:8000/docs
@@ -42,8 +46,25 @@ docker compose up -d
 `WHISPER_MODEL_DIR`    | `/models`    | Путь кеша моделей внутри контейнера
 `API_PORT`             | `8000`       | Порт сервиса
 `MAX_FILE_SIZE_MB`     | `1000`       | Максимальный размер загружаемого файла, МБ
+`API_KEYS`             | —            | Ключи потребителей: пары `имя:ключ` через запятую. Обязательна
 
 Модели кешируются в `./data/models` — при перезапуске контейнера не перекачиваются.
+
+## Доступ по ключу
+
+Сервис отвечает только тому, кто предъявил ключ в заголовке `X-API-Key`.
+
+- Ключи и имена потребителей задаются одной переменной `API_KEYS` — пары `имя:ключ`
+  через запятую, например `voice_input:<ключ1>,ecto_bot:<ключ2>`. Имя нужно, чтобы по
+  логу было видно, кто пришёл, и чтобы отобрать доступ у одного, не трогая остальных.
+- Проверка стоит на всём приложении, а не на отдельных ручках: новая ручка закрыта
+  по умолчанию. Открыт ровно один путь — `GET /health`, по нему живёт healthcheck
+  контейнера. `/docs`, `/redoc` и `/openapi.json` — под ключом.
+- Нет заголовка или ключ неизвестен — `401` с телом `{"detail": ...}`.
+- На каждый пропущенный запрос в лог уходит строка с именем потребителя и путём.
+  Сам ключ в лог не попадает ни при успехе, ни при отказе.
+- Настоящие ключи в репозитории не лежат: в `.env.example` только имя переменной
+  с заглушкой `CHANGE_ME`.
 
 ## API
 
@@ -64,6 +85,7 @@ POST /transcribe
 
 ```bash
 curl -X POST http://localhost:8000/transcribe \
+     -H "X-API-Key: $VOICE_RECOGNITION_API_KEY" \
      -F "file=@audio.ogg"
 ```
 
@@ -82,6 +104,8 @@ GET  /transcribe/async/{job_id} — проверить статус и забр�
 GET /health
 ```
 
+Единственная ручка без ключа.
+
 ## Клиентский протокол
 
 В пакете нет готового HTTP-клиента — только контракт `ITranscriber` и DTO ответа. Реализацию пишите у себя: это позволяет выбрать любую HTTP-библиотеку (`httpx`, `aiohttp`, `requests`) и не тащить лишние транзитивные зависимости.
@@ -89,6 +113,7 @@ GET /health
 ### Пример HTTP-реализации
 
 ```python
+import os
 from pathlib import Path
 
 import httpx
@@ -112,11 +137,13 @@ class HttpTranscriber:
     def __init__(
         self,
         base_url: str,
+        api_key: str,
         *,
         timeout_seconds: float = 120.0,
         default_language: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._api_key = api_key
         self._timeout = timeout_seconds
         self._default_language = default_language
 
@@ -129,6 +156,7 @@ class HttpTranscriber:
             files = {"file": (audio_path.name, handle, "application/octet-stream")}
             response = httpx.post(
                 f"{self._base_url}/transcribe",
+                headers={"X-API-Key": self._api_key},
                 files=files,
                 data=data,
                 timeout=self._timeout,
@@ -137,7 +165,11 @@ class HttpTranscriber:
         return TranscriptionResult.model_validate(response.json())
 
 
-transcriber = HttpTranscriber("http://localhost:8000", default_language="ru")
+transcriber = HttpTranscriber(
+    "http://localhost:8000",
+    api_key=os.environ["VOICE_RECOGNITION_API_KEY"],
+    default_language="ru",
+)
 result = transcriber.transcribe(Path("audio.ogg"))
 print(result.text)
 ```
