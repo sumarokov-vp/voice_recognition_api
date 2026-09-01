@@ -25,6 +25,7 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8000
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-1000}
+      API_KEYS: "${API_KEYS:?API_KEYS не задан — сервис без ключей не поднимается}"
     volumes:
       - ./data/models:/models
     healthcheck:

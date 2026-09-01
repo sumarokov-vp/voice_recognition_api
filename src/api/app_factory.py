@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from api.auth.api_key_middleware import ApiKeyMiddleware
 from api.composition.api_config import ApiConfig
 from api.composition.composition_root import build_composition
 from api.routes.async_transcribe_route import router as async_transcribe_router
@@ -27,6 +28,11 @@ def create_app(config: ApiConfig | None = None) -> FastAPI:
         yield
 
     app = FastAPI(title="voice_recognition", lifespan=lifespan)
+
+    app.add_middleware(
+        ApiKeyMiddleware,
+        registry=effective_config.api_key_registry,
+    )
 
     @app.exception_handler(AudioDecodingError)
     async def handle_audio_error(_: Request, exc: AudioDecodingError) -> JSONResponse:
