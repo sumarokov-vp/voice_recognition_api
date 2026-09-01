@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"  # `except A, B:` без скобок — PEP 758, только 3.14+
 # dependencies = ["pyyaml"]
 # ///
 """Выкат voice_recognition на сервер: исходники туда → сборка образа ТАМ → перезапуск
@@ -72,7 +72,10 @@ SOURCES: tuple[str, ...] = (
     "pyproject.toml",
     "uv.lock",
     "README.md",
-    "src/",
+    # без завершающего слэша: `src/` в rsync означает «содержимое каталога», и на сервер
+    # уехали бы `api/`, `client/`, `transcription/` россыпью, а `COPY src /app/src` в
+    # Dockerfile не нашёл бы каталога.
+    "src",
 )
 # Пути, по которым считается грязность рабочей копии: ровно то, что уезжает, плюс compose,
 # которым владеет репа. Правки в `.claude/`, тестах и README-соседях на сервер не едут.
