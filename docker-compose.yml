@@ -1,8 +1,8 @@
+# Запускается на sumarokov-home в ~/docker/voice-recognition/ как compose.yaml —
+# образ собирает скилл выката, этот файл только поднимает готовый.
+# .env и models/ там свои для машины, выкатом не трогаются и в репе не лежат.
 services:
   voice-recognition:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: voice-recognition:latest
     container_name: voice-recognition
     restart: unless-stopped
@@ -30,7 +30,7 @@ services:
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-1000}
       API_KEYS: "${API_KEYS:?API_KEYS не задан — сервис без ключей не поднимается}"
     volumes:
-      - ./data/models:/models
+      - ./models:/models
     healthcheck:
       test:
         - CMD

@@ -21,3 +21,7 @@ htmlcov/
 .vscode/
 *.log
 .agent-branch
+
+# Per-machine конфиг Claude-скиллов. У каждого разработчика свой.
+# Шаблон — .claude/config.local.yaml.example (он в git).
+.claude/config.local.yaml
