@@ -16,6 +16,10 @@ server = [
     "python-multipart>=0.0.12",
     "pydantic-settings>=2.6",
 ]
+# Движок для Apple Silicon. Маркер обязателен: на Linux пакет не ставится.
+mlx = [
+    "mlx-whisper>=0.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 
 [dependency-groups]
 dev = [

@@ -12,3 +12,7 @@ class ModelNotLoadedError(TranscriptionError):
 
 class JobNotFoundError(TranscriptionError):
     """Задача транскрипции с указанным идентификатором не найдена."""
+
+
+class EngineUnavailableError(TranscriptionError):
+    """Выбранный движок распознавания недоступен в текущем окружении."""

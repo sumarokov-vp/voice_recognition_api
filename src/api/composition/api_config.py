@@ -2,6 +2,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from api.auth.api_key_registry import ApiKeyRegistry
+from api.composition.whisper_engine_kind import WhisperEngineKind
 
 
 class ApiConfig(BaseSettings):
@@ -13,11 +14,15 @@ class ApiConfig(BaseSettings):
 
     api_keys: str
 
+    whisper_engine: WhisperEngineKind = WhisperEngineKind.FASTER
+    whisper_language: str = "ru"
+
     whisper_model: str = "medium"
     whisper_device: str = "cuda"
     whisper_compute_type: str = "float16"
-    whisper_language: str = "ru"
     whisper_model_dir: str = "/models"
+
+    whisper_mlx_model: str = "mlx-community/whisper-large-v3-turbo"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
