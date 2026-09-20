@@ -39,16 +39,55 @@ docker compose up -d
 
 Переменная             | По умолчанию | Описание
 -----------------------|--------------|------------------------------------------------------
-`WHISPER_MODEL`        | `medium`     | Размер модели: `tiny`, `base`, `small`, `medium`, `large-v3`
-`WHISPER_DEVICE`       | `cuda`       | Устройство: `cuda` или `cpu`
-`WHISPER_COMPUTE_TYPE` | `float16`    | Точность: `float16`, `int8`, `float32`
+`WHISPER_ENGINE`       | `faster`     | Движок распознавания: `faster` или `mlx` (см. ниже)
 `WHISPER_LANGUAGE`     | `ru`         | Язык по умолчанию (`auto` — автоопределение)
-`WHISPER_MODEL_DIR`    | `/models`    | Путь кеша моделей внутри контейнера
+`WHISPER_MODEL`        | `medium`     | Только `faster`. Размер модели: `tiny`, `base`, `small`, `medium`, `large-v3`
+`WHISPER_DEVICE`       | `cuda`       | Только `faster`. Устройство: `cuda` или `cpu`
+`WHISPER_COMPUTE_TYPE` | `float16`    | Только `faster`. Точность: `float16`, `int8`, `float32`
+`WHISPER_MODEL_DIR`    | `/models`    | Только `faster`. Путь кеша моделей внутри контейнера
+`WHISPER_MLX_MODEL`    | `mlx-community/whisper-large-v3-turbo` | Только `mlx`. Repo id модели на Hugging Face
 `API_PORT`             | `8000`       | Порт сервиса
 `MAX_FILE_SIZE_MB`     | `1000`       | Максимальный размер загружаемого файла, МБ
 `API_KEYS`             | —            | Ключи потребителей: пары `имя:ключ` через запятую. Обязательна
 
 Модели кешируются в `./data/models` — при перезапуске контейнера не перекачиваются.
+
+Переменные чужого движка не удаляются и не ломают старт: движок берёт только свои,
+а про остальные, если они заданы явно, пишет предупреждение в лог при старте.
+
+## Движок распознавания
+
+Переменная            | `faster` (по умолчанию)          | `mlx`
+----------------------|----------------------------------|----------------------------------
+Библиотека            | `faster-whisper` (ctranslate2)   | `mlx-whisper`
+Железо                | NVIDIA CUDA или CPU              | Apple Silicon (GPU через Metal)
+Запуск                | docker compose                   | нативно, вне docker
+Установка             | `uv sync --extra server`         | `uv sync --extra server --extra mlx`
+Модель                | `WHISPER_MODEL` + `WHISPER_MODEL_DIR` | `WHISPER_MLX_MODEL` (HF repo id)
+
+`mlx` ставится только на macOS/arm64: у зависимости стоит маркер платформы, на Linux
+группа `mlx` разрешается в пустой набор. Значение по умолчанию — `faster`, поэтому
+обновление кода на Linux-сервере ничего не меняет.
+
+Запуск на Apple Silicon:
+
+```bash
+brew install ffmpeg
+uv sync --extra server --extra mlx
+WHISPER_ENGINE=mlx uv run python -m api
+```
+
+Замеры на Mac mini M4 (45 секунд русской речи):
+
+Модель                                     | Время  | Скорость
+-------------------------------------------|--------|----------
+`mlx-community/whisper-large-v3-mlx`       | 34.2 с | 1.3x
+`mlx-community/whisper-large-v3-mlx-4bit`  | 21.5 с | 2.1x
+`mlx-community/whisper-large-v3-turbo`     | 11.4 с | 3.9x (по умолчанию)
+
+Веса модели скачиваются при старте сервиса, а не при первом запросе: движок
+прогоняет через модель секунду тишины, чтобы `/health` не показывал готовность
+раньше времени и чтобы первый запрос бота не ждал загрузку с Hugging Face.
 
 ## Доступ по ключу
 
