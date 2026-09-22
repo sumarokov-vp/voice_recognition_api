@@ -13,8 +13,18 @@
 # Резолвер — .claude/lib/machine_config.py. Каждое значение можно переопределить env-переменной.
 
 skills:
-  # Скилл /deploy — выкатка voice_recognition на sumarokov-home.
+  # Скилл /deploy. Целей две, и обе боевые: сервис работает и там, и там.
   deploy:
+    # --- цель home: домашний Linux-сервер, сервис в docker (faster-whisper на CUDA) ---
     # Имя Host из ~/.ssh/config, указывающего на сервер через mesh ЕЦТО (10.72.0.199).
     # host/user/приватный ключ настроены ТАМ, под этим алиасом. env-override: $PROD_SSH_ALIAS
     prod_ssh_alias: sumarokov_home_ecto
+
+    # --- цель mini: Mac mini, сервис нативный под launchd (mlx-whisper на Metal) ---
+    # Имя Host из ~/.ssh/config, указывающего на mini через mesh. env-override: $MINI_SSH_ALIAS
+    mini_ssh_alias: mac-mini
+    # ПУТЬ к записи pass с sudo-паролем пользователя на mini — не сам пароль.
+    # Демон живёт в системном домене launchd, поэтому его перезапуск требует root; на самой
+    # mini нет ни pass, ни gpg, так что запись читается здесь и уезжает туда в stdin.
+    # env-override: $MINI_SUDO_PASS_ENTRY
+    mini_sudo_pass_entry: work/local/mac-mini/sudo

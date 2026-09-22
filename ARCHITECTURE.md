@@ -39,7 +39,8 @@ transcription  ---X client                (ядро не знает про SDK)
 
 | Протокол               | Где объявлен (потребитель)                                    | Реализация                                                  |
 |------------------------|---------------------------------------------------------------|-------------------------------------------------------------|
-| `IWhisperEngine`       | `transcription/application/protocols/i_whisper_engine.py`     | `transcription/infrastructure/faster_whisper_engine.py`     |
+| `IWhisperEngine`       | `transcription/application/protocols/i_whisper_engine.py`     | `transcription/infrastructure/faster_whisper_engine.py`, `.../mlx_whisper_engine.py` |
+| `IMlxWhisperModule`    | `transcription/infrastructure/protocols/i_mlx_whisper_module.py` | пакет `mlx_whisper` (внешний, подключается по требованию)  |
 | `ITranscribeUseCase`   | `api/protocols/i_transcribe_use_case.py`                      | `transcription/application/use_cases/transcribe_audio.py`   |
 | `IHealthProbe`         | `api/protocols/i_health_probe.py`                             | `transcription/application/use_cases/health_probe.py`       |
 | `ITranscriber`         | `client/protocols/i_transcriber.py`                           | `client/http_transcriber.py`                                |
@@ -62,13 +63,37 @@ src/transcription/
 |       |-- transcribe_audio.py        # TranscribeAudioUseCase
 |       `-- health_probe.py            # HealthProbeUseCase
 `-- infrastructure/
+    |-- protocols/
+    |   `-- i_mlx_whisper_module.py    # Контракт mlx_whisper глазами движка
     |-- faster_whisper_engine.py       # Реализация IWhisperEngine на faster-whisper
-    `-- whisper_engine_config.py       # Pydantic-модель настроек движка
+    |-- whisper_engine_config.py       # Pydantic-модель настроек faster-движка
+    |-- mlx_whisper_engine.py          # Реализация IWhisperEngine на mlx-whisper
+    |-- mlx_whisper_engine_config.py   # Pydantic-модель настроек mlx-движка
+    `-- mlx_whisper_module_loader.py   # Отложенный импорт mlx_whisper
 ```
 
 Слой `domain` — чистые pydantic-модели без зависимостей. Слой `application` —
 use case и Protocol-интерфейсы к внешним системам. Слой `infrastructure` —
-адаптер к `faster-whisper`, который реализует `IWhisperEngine`.
+адаптеры к `faster-whisper` и `mlx-whisper`, каждый из которых реализует
+`IWhisperEngine`.
+
+### Два движка
+
+`faster-whisper` работает на CUDA и на CPU, `mlx-whisper` — на Apple Silicon
+(Metal). Реализация выбирается на старте по `WHISPER_ENGINE`, дальше вся
+система видит один и тот же `IWhisperEngine` и о выборе не знает: ни use case,
+ни роуты, ни формат ответа не меняются.
+
+У движков разные настройки (устройство и точность против HF repo id), поэтому
+у каждого свой config-объект, а не один общий с полями «для кого-то». Настройки
+чужого движка, заданные явно, не игнорируются молча и не роняют старт — про них
+пишется warning в `whisper_engine_builder`.
+
+Пакет `mlx_whisper` ставится только на macOS/arm64, поэтому `mlx_whisper_engine`
+не импортирует его на уровне модуля: импорт делает `mlx_whisper_module_loader`
+по требованию, а отсутствие пакета превращается в `EngineUnavailableError`.
+Движок получает загрузчик через конструктор, так что в тестах подставляется
+фейковый модуль.
 
 ## Контекст api
 
@@ -86,6 +111,9 @@ src/api/
 |   `-- health_route.py                # GET /health
 |-- composition/
 |   |-- api_config.py                  # Pydantic-settings для API (host, port, лимиты)
+|   |-- whisper_engine_kind.py         # Enum faster | mlx — значение WHISPER_ENGINE
+|   |-- whisper_engine_builder.py      # Выбор реализации движка по конфигу
+|   |-- built_whisper_engine.py        # Движок + как он показывается в /health
 |   `-- composition_root.py            # Сборка зависимостей, preload модели
 `-- app_factory.py                     # create_app() -> FastAPI
 ```
@@ -124,11 +152,12 @@ src/client/
 ```python
 # src/api/composition/composition_root.py
 
-def build_composition(config: ApiConfig, engine_config: WhisperEngineConfig) -> Composition:
-    engine = FasterWhisperEngine(engine_config)
+def build_composition(config: ApiConfig) -> Composition:
+    built_engine = build_whisper_engine(config)   # faster или mlx — решает WHISPER_ENGINE
+    engine = built_engine.engine
     engine.preload()
-    transcribe_use_case = TranscribeAudioUseCase(engine, default_language=engine_config.language)
-    health_probe = HealthProbeUseCase(engine, model=engine_config.model, device=engine_config.device)
+    transcribe_use_case = TranscribeAudioUseCase(engine, default_language=built_engine.language)
+    health_probe = HealthProbeUseCase(engine, model=built_engine.model, device=built_engine.device)
     return Composition(transcribe_use_case=transcribe_use_case, health_probe=health_probe, config=config)
 ```
 
@@ -138,8 +167,9 @@ def build_composition(config: ApiConfig, engine_config: WhisperEngineConfig) -> 
 
 ## Точки расширения
 
-1. Замена движка — добавить новую реализацию `IWhisperEngine` и подменить
-   её в composition root (например, `OpenAIWhisperEngine` как fallback).
+1. Замена движка — добавить новую реализацию `IWhisperEngine`, значение в
+   `WhisperEngineKind` и ветку в `whisper_engine_builder` (так уже добавлен
+   `MlxWhisperEngine`).
 2. Добавить асинхронную очередь транскрипций — ввести новый use case
    `EnqueueTranscription`, который пишет в RabbitMQ, и отдельного воркера.
 3. Диаризация (распознавание спикеров) — расширить `Segment` полем `speaker`
@@ -155,4 +185,6 @@ def build_composition(config: ApiConfig, engine_config: WhisperEngineConfig) -> 
   доменных исключений в HTTP-коды).
 
 Доменные исключения определяются в `transcription/domain/exceptions.py`
-(например, `AudioDecodingError`, `ModelNotLoadedError`).
+(например, `AudioDecodingError`, `ModelNotLoadedError`,
+`EngineUnavailableError`). Отсутствие пакета движка проверяется через
+`importlib.util.find_spec`, а не через `try/except ImportError`.
