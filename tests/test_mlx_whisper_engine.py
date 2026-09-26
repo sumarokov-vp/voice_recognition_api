@@ -33,9 +33,15 @@ class _FakeMlxWhisperModule:
         *,
         path_or_hf_repo: str,
         language: str | None,
+        initial_prompt: str | None,
     ) -> dict[str, Any]:
         self.calls.append(
-            {"audio": audio, "path_or_hf_repo": path_or_hf_repo, "language": language},
+            {
+                "audio": audio,
+                "path_or_hf_repo": path_or_hf_repo,
+                "language": language,
+                "initial_prompt": initial_prompt,
+            },
         )
         self.probes.append(_probe_wav(audio))
         return self._result
@@ -76,7 +82,7 @@ def _result_with_two_segments() -> dict[str, Any]:
 def test_maps_mlx_result_to_domain_result() -> None:
     engine, _, _ = _make_engine(_result_with_two_segments())
 
-    result = engine.transcribe(AUDIO_PATH, "ru")
+    result = engine.transcribe(AUDIO_PATH, "ru", None)
 
     assert result.text == "привет мир"
     assert result.language == "ru"
@@ -90,12 +96,13 @@ def test_maps_mlx_result_to_domain_result() -> None:
 def test_model_goes_to_mlx_as_hf_repo() -> None:
     engine, module, _ = _make_engine(_result_with_two_segments(), model="mlx-community/other")
 
-    engine.transcribe(AUDIO_PATH, "ru")
+    engine.transcribe(AUDIO_PATH, "ru", None)
 
     assert module.calls[-1] == {
         "audio": str(AUDIO_PATH),
         "path_or_hf_repo": "mlx-community/other",
         "language": "ru",
+        "initial_prompt": None,
     }
 
 
@@ -104,7 +111,7 @@ def test_auto_language_is_passed_as_none_and_detected_one_returned() -> None:
     result_payload["language"] = "en"
     engine, module, _ = _make_engine(result_payload)
 
-    result = engine.transcribe(AUDIO_PATH, "auto")
+    result = engine.transcribe(AUDIO_PATH, "auto", None)
 
     assert module.calls[-1]["language"] is None
     assert result.language == "en"
@@ -113,7 +120,7 @@ def test_auto_language_is_passed_as_none_and_detected_one_returned() -> None:
 def test_result_without_segments_falls_back_to_plain_text() -> None:
     engine, _, _ = _make_engine({"text": " привет ", "language": "ru", "segments": []})
 
-    result = engine.transcribe(AUDIO_PATH, "ru")
+    result = engine.transcribe(AUDIO_PATH, "ru", None)
 
     assert result.text == "привет"
     assert result.segments == []
@@ -128,6 +135,15 @@ def test_preload_warms_model_up_on_a_second_of_silence() -> None:
     assert engine.is_loaded() is True
     assert module.probes == [(16000, 16000)]
     assert module.calls[0]["language"] == "ru"
+    assert module.calls[0]["initial_prompt"] is None
+
+
+def test_initial_prompt_goes_to_mlx_but_not_to_warm_up() -> None:
+    engine, module, _ = _make_engine(_result_with_two_segments())
+
+    engine.transcribe(AUDIO_PATH, "ru", "Todoist, в Todoist'е")
+
+    assert [call["initial_prompt"] for call in module.calls] == [None, "Todoist, в Todoist'е"]
 
 
 def test_module_is_loaded_lazily_and_only_once() -> None:
@@ -135,8 +151,8 @@ def test_module_is_loaded_lazily_and_only_once() -> None:
 
     assert engine.is_loaded() is False
 
-    engine.transcribe(AUDIO_PATH, "ru")
-    engine.transcribe(AUDIO_PATH, "ru")
+    engine.transcribe(AUDIO_PATH, "ru", None)
+    engine.transcribe(AUDIO_PATH, "ru", None)
 
     assert engine.is_loaded() is True
     assert loader.load_count == 1

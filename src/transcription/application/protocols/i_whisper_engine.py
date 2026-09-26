@@ -19,6 +19,11 @@ class IWhisperEngine(Protocol):
         """Признак готовности модели к инференсу."""
         ...
 
-    def transcribe(self, audio_path: Path, language: str) -> TranscriptionResult:
+    def transcribe(
+        self,
+        audio_path: Path,
+        language: str,
+        initial_prompt: str | None,
+    ) -> TranscriptionResult:
         """Распознать аудиофайл и вернуть результат с сегментами."""
         ...

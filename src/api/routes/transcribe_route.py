@@ -15,6 +15,14 @@ router = APIRouter()
 def transcribe(
     file: UploadFile = File(...),
     language: str | None = Form(default=None),
+    prompt: str | None = Form(
+        default=None,
+        description=(
+            "Подсказка-глоссарий для Whisper (initial_prompt): термины и их формы. "
+            "Заменяет WHISPER_INITIAL_PROMPT, пустая строка — как не передана. "
+            "Учитываются примерно последние 224 токена."
+        ),
+    ),
     use_case: ITranscribeUseCase = Depends(get_transcribe_use_case),
     max_size: int = Depends(get_max_file_size_bytes),
 ) -> TranscriptionResponse:
@@ -26,7 +34,7 @@ def transcribe(
         )
     suffix = Path(file.filename or "audio.bin").suffix or ".bin"
     with UploadTempFile(suffix=suffix).write(payload) as audio_path:
-        result = use_case.execute(audio_path=audio_path, language=language)
+        result = use_case.execute(audio_path=audio_path, language=language, prompt=prompt)
     return TranscriptionResponse(
         text=result.text,
         language=result.language,

@@ -61,6 +61,7 @@ def _to_transcription_response(job: TranscriptionJob) -> TranscriptionResponse |
 def _run_transcription_sync(
     job_id: str,
     language: str | None,
+    prompt: str | None,
     repository: IJobRepository,
     transcribe_use_case: ITranscribeUseCase,
 ) -> None:
@@ -70,7 +71,11 @@ def _run_transcription_sync(
     job.status = TranscriptionJobStatus.processing
     repository.update(job)
     try:
-        result = transcribe_use_case.execute(audio_path=job.audio_path, language=language)
+        result = transcribe_use_case.execute(
+            audio_path=job.audio_path,
+            language=language,
+            prompt=prompt,
+        )
         job.result = result
         job.status = TranscriptionJobStatus.completed
     except Exception as exc:
@@ -84,6 +89,7 @@ def _run_transcription_sync(
 async def _run_transcription_in_thread(
     job_id: str,
     language: str | None,
+    prompt: str | None,
     repository: IJobRepository,
     transcribe_use_case: ITranscribeUseCase,
 ) -> None:
@@ -91,6 +97,7 @@ async def _run_transcription_in_thread(
         _run_transcription_sync,
         job_id,
         language,
+        prompt,
         repository,
         transcribe_use_case,
     )
@@ -105,6 +112,14 @@ async def submit_async_transcription(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     language: str | None = Form(default=None),
+    prompt: str | None = Form(
+        default=None,
+        description=(
+            "Подсказка-глоссарий для Whisper (initial_prompt): термины и их формы. "
+            "Заменяет WHISPER_INITIAL_PROMPT, пустая строка — как не передана. "
+            "Учитываются примерно последние 224 токена."
+        ),
+    ),
     submit_use_case: ISubmitJobUseCase = Depends(get_submit_job_use_case),
     transcribe_use_case: ITranscribeUseCase = Depends(get_transcribe_use_case),
     repository: IJobRepository = Depends(get_job_repository),
@@ -118,11 +133,12 @@ async def submit_async_transcription(
         )
     suffix = Path(file.filename or "audio.bin").suffix or ".bin"
     audio_path = _save_upload_to_temp(payload, suffix)
-    job = submit_use_case.submit(audio_path=audio_path, language=language)
+    job = submit_use_case.submit(audio_path=audio_path, language=language, prompt=prompt)
     background_tasks.add_task(
         _run_transcription_in_thread,
         job.id,
         language,
+        prompt,
         repository,
         transcribe_use_case,
     )

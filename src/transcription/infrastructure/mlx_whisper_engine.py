@@ -61,6 +61,7 @@ class MlxWhisperEngine:
                 str(silence_path),
                 path_or_hf_repo=self._config.model,
                 language=self._resolve_language(self._config.language),
+                initial_prompt=None,
             )
         self._module = module
         self._logger.info("Модель mlx-whisper готова: model=%s", self._config.model)
@@ -68,7 +69,12 @@ class MlxWhisperEngine:
     def is_loaded(self) -> bool:
         return self._module is not None
 
-    def transcribe(self, audio_path: Path, language: str) -> TranscriptionResult:
+    def transcribe(
+        self,
+        audio_path: Path,
+        language: str,
+        initial_prompt: str | None,
+    ) -> TranscriptionResult:
         """Распознать файл.
 
         Длительность берётся по концу последнего сегмента: mlx_whisper, в отличие
@@ -83,6 +89,7 @@ class MlxWhisperEngine:
             str(audio_path),
             path_or_hf_repo=self._config.model,
             language=resolved_language,
+            initial_prompt=initial_prompt,
         )
         segments = self._read_segments(raw_result)
         audio_duration = segments[-1].end if segments else 0.0

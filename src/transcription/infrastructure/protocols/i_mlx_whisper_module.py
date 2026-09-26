@@ -15,4 +15,5 @@ class IMlxWhisperModule(Protocol):
         *,
         path_or_hf_repo: str,
         language: str | None,
+        initial_prompt: str | None,
     ) -> dict[str, Any]: ...

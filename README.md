@@ -41,6 +41,7 @@ docker compose up -d
 -----------------------|--------------|------------------------------------------------------
 `WHISPER_ENGINE`       | `faster`     | Движок распознавания: `faster` или `mlx` (см. ниже)
 `WHISPER_LANGUAGE`     | `ru`         | Язык по умолчанию (`auto` — автоопределение)
+`WHISPER_INITIAL_PROMPT` | —          | Подсказка-глоссарий по умолчанию для обоих движков (см. [Подсказка-глоссарий](#подсказка-глоссарий))
 `WHISPER_MODEL`        | `medium`     | Только `faster`. Размер модели: `tiny`, `base`, `small`, `medium`, `large-v3`
 `WHISPER_DEVICE`       | `cuda`       | Только `faster`. Устройство: `cuda` или `cpu`
 `WHISPER_COMPUTE_TYPE` | `float16`    | Только `faster`. Точность: `float16`, `int8`, `float32`
@@ -119,6 +120,8 @@ POST /transcribe
 
 - `file` — аудиофайл
 - `language` (необязательно) — код языка, например `ru`, `en`. По умолчанию берётся из конфига.
+- `prompt` (необязательно) — подсказка-глоссарий для этого запроса. Заменяет `WHISPER_INITIAL_PROMPT`
+  целиком; пустая строка — как не передан.
 
 Пример:
 
@@ -135,6 +138,33 @@ curl -X POST http://localhost:8000/transcribe \
 ```
 POST /transcribe/async   — поставить задачу в очередь
 GET  /transcribe/async/{job_id} — проверить статус и забрать результат
+```
+
+Поля формы те же, что у синхронной ручки: `file`, `language`, `prompt`.
+
+### Подсказка-глоссарий
+
+Whisper принимает `initial_prompt` — текст, который модель считает «предыдущей репликой».
+Он подтягивает распознавание к написанию терминов из подсказки: без неё «Todoist» в
+русской речи превращается в «тудуист», «туду ист» и так далее.
+
+- Источник: поле `prompt` запроса, иначе `WHISPER_INITIAL_PROMPT`, иначе подсказки нет.
+  Поле запроса заменяет конфиг целиком — чтобы добавить термин к общему глоссарию,
+  передайте общий глоссарий вместе с термином.
+- Лучше работает связный текст с терминами в нужных падежах, чем голый список слов:
+  `Добавь задачу в Todoist. В Todoist'е, из Todoist'а, с Todoist'ом.`
+- Whisper учитывает примерно последние 224 токена подсказки, начало длинного текста
+  отбрасывается. Кириллица занимает больше токенов, чем латиница.
+- На тишине и шуме модель иногда выдаёт саму подсказку как распознанный текст. Держите
+  подсказку короткой и не превращайте её в словарь на все случаи.
+
+Пример:
+
+```bash
+curl -X POST http://localhost:8000/transcribe \
+     -H "X-API-Key: $VOICE_RECOGNITION_API_KEY" \
+     -F "file=@audio.ogg" \
+     -F "prompt=Добавь задачу в Todoist. В Todoist'е, из Todoist'а."
 ```
 
 ### Состояние сервиса
@@ -180,16 +210,20 @@ class HttpTranscriber:
         *,
         timeout_seconds: float = 120.0,
         default_language: str | None = None,
+        prompt: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._timeout = timeout_seconds
         self._default_language = default_language
+        self._prompt = prompt
 
     def transcribe(self, audio_path: Path) -> TranscriptionResult:
         data: dict[str, str] = {}
         if self._default_language is not None:
             data["language"] = self._default_language
+        if self._prompt:
+            data["prompt"] = self._prompt
 
         with audio_path.open("rb") as handle:
             files = {"file": (audio_path.name, handle, "application/octet-stream")}
@@ -208,6 +242,7 @@ transcriber = HttpTranscriber(
     "http://localhost:8000",
     api_key=os.environ["VOICE_RECOGNITION_API_KEY"],
     default_language="ru",
+    prompt="Добавь задачу в Todoist. В Todoist'е, из Todoist'а, с Todoist'ом.",
 )
 result = transcriber.transcribe(Path("audio.ogg"))
 print(result.text)
