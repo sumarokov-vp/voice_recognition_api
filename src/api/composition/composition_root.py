@@ -19,6 +19,7 @@ def build_composition(config: ApiConfig) -> Composition:
     transcribe_use_case = TranscribeAudioUseCase(
         engine=engine,
         default_language=built_engine.language,
+        default_initial_prompt=config.whisper_initial_prompt,
     )
     health_probe = HealthProbeUseCase(
         engine=engine,

@@ -95,6 +95,18 @@ use case и Protocol-интерфейсы к внешним системам. С
 Движок получает загрузчик через конструктор, так что в тестах подставляется
 фейковый модуль.
 
+### Подсказка-глоссарий (initial_prompt)
+
+Подсказка — параметр запроса, а не свойство движка, поэтому её значение по умолчанию
+(`WHISPER_INITIAL_PROMPT`) не лежит в config-объектах движков: composition root отдаёт
+его прямо в `TranscribeAudioUseCase`. Выбор делает use case: `prompt` запроса, иначе
+значение из конфига, иначе `None`; пустая строка приравнена к отсутствию. Подсказка
+запроса заменяет конфиговую, а не склеивается с ней — у Whisper на неё около 224
+токенов, и склейка молча съедала бы хвост. Движки получают уже разрешённое значение
+третьим аргументом `IWhisperEngine.transcribe` и передают его в `initial_prompt` своей
+библиотеки. Прогрев mlx-движка идёт без подсказки: на тишине она только провоцирует
+модель повторить её в тексте.
+
 ## Контекст api
 
 ```
@@ -156,7 +168,11 @@ def build_composition(config: ApiConfig) -> Composition:
     built_engine = build_whisper_engine(config)   # faster или mlx — решает WHISPER_ENGINE
     engine = built_engine.engine
     engine.preload()
-    transcribe_use_case = TranscribeAudioUseCase(engine, default_language=built_engine.language)
+    transcribe_use_case = TranscribeAudioUseCase(
+        engine,
+        default_language=built_engine.language,
+        default_initial_prompt=config.whisper_initial_prompt,
+    )
     health_probe = HealthProbeUseCase(engine, model=built_engine.model, device=built_engine.device)
     return Composition(transcribe_use_case=transcribe_use_case, health_probe=health_probe, config=config)
 ```

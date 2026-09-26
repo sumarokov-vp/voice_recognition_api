@@ -16,6 +16,7 @@ class ApiConfig(BaseSettings):
 
     whisper_engine: WhisperEngineKind = WhisperEngineKind.FASTER
     whisper_language: str = "ru"
+    whisper_initial_prompt: str | None = None
 
     whisper_model: str = "medium"
     whisper_device: str = "cuda"

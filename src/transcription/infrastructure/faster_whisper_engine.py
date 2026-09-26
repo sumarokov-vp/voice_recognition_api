@@ -40,13 +40,19 @@ class FasterWhisperEngine:
     def is_loaded(self) -> bool:
         return self._model is not None
 
-    def transcribe(self, audio_path: Path, language: str) -> TranscriptionResult:
+    def transcribe(
+        self,
+        audio_path: Path,
+        language: str,
+        initial_prompt: str | None,
+    ) -> TranscriptionResult:
         model = self._require_model()
         resolved_language = None if language == "auto" else language
         wall_start = time.monotonic()
         segments_iter, info = model.transcribe(
             str(audio_path),
             language=resolved_language,
+            initial_prompt=initial_prompt,
             vad_filter=True,
         )
         audio_duration = float(info.duration)

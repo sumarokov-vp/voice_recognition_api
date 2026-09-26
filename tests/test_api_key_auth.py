@@ -24,7 +24,12 @@ class _FakeHealthProbe:
 
 
 class _FakeTranscribeUseCase:
-    def execute(self, audio_path: Path, language: str | None = None) -> TranscriptionResult:
+    def execute(
+        self,
+        audio_path: Path,
+        language: str | None = None,
+        prompt: str | None = None,
+    ) -> TranscriptionResult:
         return TranscriptionResult(
             text="привет",
             language=language or "ru",

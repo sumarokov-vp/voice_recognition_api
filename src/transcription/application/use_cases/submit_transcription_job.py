@@ -19,7 +19,12 @@ class SubmitTranscriptionJobUseCase:
         self._repository = repository
         self._engine = engine
 
-    def submit(self, audio_path: Path, language: str | None = None) -> TranscriptionJob:
+    def submit(
+        self,
+        audio_path: Path,
+        language: str | None = None,
+        prompt: str | None = None,
+    ) -> TranscriptionJob:
         job = TranscriptionJob(
             id=str(uuid.uuid4()),
             status=TranscriptionJobStatus.pending,
