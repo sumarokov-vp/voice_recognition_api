@@ -47,8 +47,16 @@ ENV PYTHONUNBUFFERED=1 \
 # Зафиксированная версия ffmpeg из debian bookworm. При bump'е base-образа
 # apt может предложить другую — обновлять осознанно.
 # CUDA runtime нужен ctranslate2 (бэкенд faster-whisper) — либы не бандлятся в wheel.
+# DEBIAN_MIRROR — хост зеркала вместо deb.debian.org (только основной репозиторий,
+# debian-security остаётся штатным). Пусто — штатный CDN. Нужен там, где CDN Debian
+# отдаёт килобайты в секунду: `docker build --build-arg DEBIAN_MIRROR=mirror.ps.kz`.
+ARG DEBIAN_MIRROR=
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    if [ -n "$DEBIAN_MIRROR" ]; then \
+        sed -i "s|^URIs: http://deb.debian.org/debian\$|URIs: http://${DEBIAN_MIRROR}/debian|" \
+            /etc/apt/sources.list.d/debian.sources; \
+    fi && \
     apt-get update && \
     apt-get install -y --no-install-recommends curl gnupg2 && \
     curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
@@ -57,7 +65,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm /tmp/cuda-keyring.deb && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        ffmpeg=7:5.1.8-0+deb12u1 \
+        ffmpeg=7:5.1.9-0+deb12u1 \
         libcublas-12-6 \
         libcudnn9-cuda-12 && \
     mkdir -p /models && \
