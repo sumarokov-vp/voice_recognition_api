@@ -16,9 +16,10 @@ skills:
   # Скилл /deploy. Целей две, и обе боевые: сервис работает и там, и там.
   deploy:
     # --- цель home: домашний Linux-сервер, сервис в docker (faster-whisper на CUDA) ---
-    # Имя Host из ~/.ssh/config, указывающего на сервер через mesh ЕЦТО (10.72.0.199).
+    # Имя Host из ~/.ssh/config, указывающего на домашний сервер (Ubuntu Server, RTX 4080):
+    # дома — по LAN (192.168.0.20), в поездке — алиас через mesh ЕЦТО (10.72.0.199).
     # host/user/приватный ключ настроены ТАМ, под этим алиасом. env-override: $PROD_SSH_ALIAS
-    prod_ssh_alias: sumarokov_home_ecto
+    prod_ssh_alias: ubuntu-home
 
     # --- цель mini: Mac mini, сервис нативный под launchd (mlx-whisper на Metal) ---
     # Имя Host из ~/.ssh/config, указывающего на mini через mesh. env-override: $MINI_SSH_ALIAS

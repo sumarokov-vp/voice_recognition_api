@@ -1,4 +1,5 @@
-# Запускается на sumarokov-home в ~/docker/voice-recognition/ как compose.yaml —
+# Запускается на домашнем сервере (ssh-алиас ubuntu-home, Ubuntu Server 24.04) в
+# ~/docker/voice-recognition/ как compose.yaml —
 # образ собирает скилл выката, этот файл только поднимает готовый.
 # .env и models/ там свои для машины, выкатом не трогаются и в репе не лежат.
 services:
@@ -15,10 +16,11 @@ services:
               count: all
               capabilities: [gpu]
     ports:
-      # порт публикуется точечно: локальная машина и mesh ЕЦТО, но не домашняя LAN.
-      # адрес 10.72.0.199 поднимает wg-quick@ecto — без интерфейса docker не стартует
-      - "127.0.0.1:8000:8000"
-      - "10.72.0.199:8000:8000"
+      # Публикуется на всех интерфейсах, а кого пускать — решает ufw на сервере:
+      # `ufw route allow ... port 8000` для домашней LAN и туннелей (ecto_hub, smartist_hub),
+      # блок ufw-docker в /etc/ufw/after.rules не даёт docker обойти эти правила.
+      # Привязка к адресам туннелей ломала бы старт контейнера, пока wg-интерфейс не поднят.
+      - "8000:8000"
     environment:
       WHISPER_MODEL: ${WHISPER_MODEL}
       WHISPER_DEVICE: ${WHISPER_DEVICE}
