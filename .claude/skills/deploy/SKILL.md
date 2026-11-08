@@ -60,7 +60,8 @@ allowed-tools: Bash(uv run .claude/skills/deploy/scripts/*)
    `README.md`, `src/`) и `docker-compose.yml` во временный каталог сборки.
 2. **Префлайт**: серверный `.env` на месте, на сервере есть buildx, и доставленный
    compose разворачивается `docker compose config` с этим `.env`.
-3. `docker build -t voice-recognition:latest .` — там же, с BuildKit.
+3. `docker build -t voice-recognition:latest .` — там же, с BuildKit; если в серверном
+   `.env` есть непустой `DEBIAN_MIRROR`, он уходит в `--build-arg` (зеркало Debian машины).
 4. Проверенный compose ложится в каталог сервиса, `docker compose up -d`.
 5. Ожидание `healthy`, затем `curl -sf http://localhost:8000/health` **с самого сервера**:
    снаружи порт опубликован не для всех сетей, а localhost открыт всегда. Ответ должен

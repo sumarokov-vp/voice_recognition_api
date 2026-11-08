@@ -31,6 +31,16 @@ COMPOSE_LOCAL = "docker-compose.yml"  # источник правды о сер�
 COMPOSE_REMOTE = "compose.yaml"  # как файл называется на сервере
 HEALTH_URL = "http://localhost:8000/health"  # снаружи порт открыт не всем, localhost — всегда
 
+# Зеркало Debian — свойство машины, а не репы: на домашнем сервере deb.debian.org отдаёт
+# десятки килобайт в секунду. Хост берётся из строки `DEBIAN_MIRROR=` серверного `.env` и
+# читается на сервере той же командой, что и собирает. `.env` целиком не source'ится: там ключи
+# API и строки в кавычках. Нет строки или она пустая — `${M:+…}` раскрывается в ничто, и сборка
+# идёт штатным CDN. `$` раскрывает удалённый bash: локально команда уходит списком в ssh.
+READ_DEBIAN_MIRROR = (
+    f"M=$(sed -n 's/^DEBIAN_MIRROR=//p' ~/{REMOTE_DIR}/.env | tail -n 1 | tr -d '\"\\r ')"
+)
+DEBIAN_MIRROR_BUILD_ARG = "${M:+--build-arg DEBIAN_MIRROR=$M}"
+
 # Состав выката: ровно то, что нужно образу по `.dockerignore`. Возить репу целиком незачем —
 # тесты, документация и сам compose в образ не попадают.
 SOURCES: tuple[str, ...] = (
@@ -89,6 +99,10 @@ class HomeDockerTarget:
             f" -f {COMPOSE_REMOTE} config -q"
         )
         print(f"  3. cd ~/{BUILD_DIR} && DOCKER_BUILDKIT=1 docker build -t {IMAGE} .")
+        print(
+            f"     + --build-arg DEBIAN_MIRROR=<хост>, если в ~/{REMOTE_DIR}/.env"
+            " есть непустой DEBIAN_MIRROR"
+        )
         print(f"  4. cp ~/{BUILD_DIR}/{COMPOSE_REMOTE} -> ~/{REMOTE_DIR}/{COMPOSE_REMOTE}")
         print(f"  5. cd ~/{REMOTE_DIR} && docker compose up -d")
         print(
@@ -205,8 +219,14 @@ class HomeDockerTarget:
 
         `DOCKER_BUILDKIT=1` выставляется явно: на старых демонах classic-строитель молча
         проигнорировал бы `# syntax=` и споткнулся о cache-mount'ы.
+
+        Зеркало Debian приходит из `DEBIAN_MIRROR` серверного `.env` и уезжает в
+        `--build-arg` только непустым — без него команда сборки прежняя.
         """
-        self._shell.run(f"cd ~/{BUILD_DIR} && DOCKER_BUILDKIT=1 docker build -t {IMAGE} .")
+        self._shell.run(
+            f"cd ~/{BUILD_DIR} && {READ_DEBIAN_MIRROR}"
+            f" && DOCKER_BUILDKIT=1 docker build {DEBIAN_MIRROR_BUILD_ARG} -t {IMAGE} ."
+        )
 
     def _install_compose(self) -> None:
         """Проверенный compose — в живой каталог сервиса. `.env` и `models/` рядом не трогаются."""
