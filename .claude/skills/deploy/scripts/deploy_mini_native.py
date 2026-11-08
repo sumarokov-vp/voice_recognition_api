@@ -29,7 +29,7 @@ from deploy_remote_shell import RemoteShell
 
 # Пути относительно домашнего каталога на mini: rsync так и адресует, а ssh-командам
 # добавляется `~/`. Абсолютных путей с именем пользователя здесь нет намеренно.
-REPO_DIR = "projects/voice_recognition"  # рабочая копия, из неё же работает сервис
+REPO_DIR = "projects/sumarokov/voice_recognition"  # рабочая копия, из неё же работает сервис
 VENV_PYTHON = ".venv/bin/python"  # интерпретатор сервиса, создан отдельно от выката
 LOG_PATH = "Library/Logs/voice-recognition.log"  # куда пишет демон (StandardOutPath в plist)
 DAEMON_LABEL = "com.sumarokov.voice-recognition"
