@@ -71,7 +71,7 @@ allowed-tools: Bash(uv run .claude/skills/deploy/scripts/*)
 ## Что происходит на Mac mini (`mini`)
 
 Здесь нет ни образа, ни compose: сервис — обычный процесс, запущенный launchd из рабочей
-копии `~/projects/voice_recognition`.
+копии `~/projects/sumarokov/voice_recognition`.
 
 1. **Префлайт** (идёт ПЕРВЫМ, до доставки исходников): на месте рабочая копия, `.env`,
    `.venv/bin/python`, демон `system/com.sumarokov.voice-recognition` загружен, `uv` находится.
