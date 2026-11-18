@@ -51,6 +51,11 @@ ENV PYTHONUNBUFFERED=1 \
 # debian-security остаётся штатным). Пусто — штатный CDN. Нужен там, где CDN Debian
 # отдаёт килобайты в секунду: `docker build --build-arg DEBIAN_MIRROR=mirror.ps.kz`.
 ARG DEBIAN_MIRROR=
+# CUDA_MAJOR_MINOR — версия cuBLAS из репозитория NVIDIA (формат пакета: 12-6, 12-8).
+# 12-6 — умолчание для домашнего сервера (RTX 4080, Ada). Blackwell (RTX 50xx, sm_120)
+# cuBLAS 12.6 не знает — для него `docker build --build-arg CUDA_MAJOR_MINOR=12-8`.
+# cuDNN 9 под CUDA 12 общий для обеих версий.
+ARG CUDA_MAJOR_MINOR=12-6
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     if [ -n "$DEBIAN_MIRROR" ]; then \
@@ -66,7 +71,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         ffmpeg=7:5.1.9-0+deb12u1 \
-        libcublas-12-6 \
+        libcublas-${CUDA_MAJOR_MINOR} \
         libcudnn9-cuda-12 && \
     mkdir -p /models && \
     chmod 1777 /models
